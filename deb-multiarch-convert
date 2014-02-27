@@ -1,0 +1,89 @@
+#!/bin/bash
+
+usage() {
+  echo "Usage: $0 <file>"
+  echo
+  echo "Converts Debian binary package <file> to multiarch."
+  echo
+  echo "<file> must be a valid Debian binary package and must be either:"
+  echo
+  echo "  a. an i386- or amd64-specific library package, containing only architecture-specific library files"
+  echo "     in /lib or /usr/lib and architecture-independent files in /usr/share and possibly /etc; "
+  echo "     such package files will be modified to install library files into the correct new filepath,"
+  echo "     and marked 'Multi-Arch: same'"
+  echo
+  echo "  b. an architecture-independent package (Architecture: all);"
+  echo "     such package files will be marked 'Multi-Arch: foreign'"
+  echo
+  echo "In all cases, a modified package will have '+multiarch' appended to the existing version string."
+  echo
+}
+
+if [ -z "$1" ] || ! [ -f "$1" ]; then
+  usage >&2
+  exit -1
+fi
+
+convert() {
+  mkdir -p $TMP $TMP/DEBIAN
+  dpkg-deb -e $PKG $TMP/DEBIAN
+
+  ARCH=$(grep '^Architecture:' $TMP/DEBIAN/control | awk '{print $2}')
+
+  if [ "$ARCH" == "i386" ]; then
+    ARCH_DIR="i386-linux-gnu"
+  elif [ "$ARCH" == "amd64" ]; then
+    ARCH_DIR="x86_64-linux-gnu"
+  elif [ "$ARCH" == "all" ]; then
+    ARCH_DIR=""
+  else
+    echo "$0: Incorrect architecture: $ARCH" >&2
+    return
+  fi
+
+  if grep -q '^Multi-Arch:' $TMP/DEBIAN/control; then
+    echo "$0: can't convert package file $PKG, since it already contains a Multi-Arch header" >&2
+    return
+  fi
+
+  dpkg-deb -x $PKG $TMP
+
+  case "$ARCH" in
+    i386|amd64)
+      if [ -d "$TMP/usr/lib/" ]; then
+        mkdir -p $TMP/usr/lib/$ARCH_DIR
+        mv $TMP/usr/lib/lib* $TMP/usr/lib/$ARCH_DIR
+      fi
+
+      if [ -d "$TMP/lib/" ]; then
+        mkdir -p $TMP/lib/$ARCH_DIR
+        mv $TMP/lib/* $TMP/lib/$ARCH_DIR
+      fi
+
+      sed -i -r 's/^(Architecture:.*)$/\1\nMulti-Arch: Same/' $TMP/DEBIAN/control
+      sed -i -r "s/ (usr\/lib\/)/ \1$ARCH_DIR\//g" $TMP/DEBIAN/md5sums
+      ;;
+      
+    all)
+      sed -i -r 's/^(Architecture:.*)$/\1\nMulti-Arch: Foreign/' $TMP/DEBIAN/control
+      ;;
+      
+    *)
+      echo "$0: Incorrect architecture: $ARCH (this error should not occur)" >&2
+      return
+      ;;
+  esac
+
+  sed -i -r 's/^(Version:.*)$/\1+multiarch/' $TMP/DEBIAN/control
+      
+  NEW_PKG_FILE=$(echo "$PKG_FILE" | sed -r "s/(_$ARCH\.deb)$/+multiarch\1/")
+
+  dpkg-deb -b $TMP $NEW_PKG_FILE
+}
+
+TMP=/tmp/debian-multiarch-convert-$$
+PKG="$1"
+PKG_FILE=$(basename "$PKG")
+
+convert
+# rm -rf "$TMP"
