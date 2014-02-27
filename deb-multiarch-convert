@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# deb-multiarch-convert is authored by Struan Bartlett and is copyright (c) 2014 NewsNow Publishing Limited
+# This script is licensed for use, modification and/or distribution under the terms of the GNU GPL v2.
+
 usage() {
   echo "Usage: $0 <file>"
   echo
