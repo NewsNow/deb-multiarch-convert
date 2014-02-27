@@ -7,9 +7,9 @@ deb-multiarch-convert provides a convenient way to create
 Debian multiarch-compatible binary package files in certain restricted circumstances,
 where modifying the source package to make the build multiarch-compatible would be too onerous.
 
-Usage: deb-multiarch-convert <file>
+Usage: deb-multiarch-convert [FILE]
 
-<file> must be a valid Debian binary package and must be either:
+[FILE] must be a valid Debian binary package and must be either:
 
   a. an i386- or amd64-specific library package, containing only architecture-specific library files
      in /lib or /usr/lib and architecture-independent files in /usr/share and possibly /etc;
